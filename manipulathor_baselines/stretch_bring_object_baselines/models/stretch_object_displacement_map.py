@@ -362,7 +362,12 @@ class StretchObjectDisplacementMapModel(ActorCriticModel[CategoricalDistr]):
             # Filters out points detected on the arm
             # This is probably too conservative. We should be able to compute a more accurate mask from the arm pose
             if camera_name == 'camera_arm':
-                valid_depths = torch.logical_and(reshaped_frame > 1.0, valid_depths)
+                # valid_depths = torch.logical_and(reshaped_frame > 1.0, valid_depths)
+                mask = observations['agent_mask_arm'][timestep, batch].unsqueeze(0)
+                dilation_size = 3
+                dilation_mask = torch.ones((1, 1, dilation_size*2+1, dilation_size*2+1), device=mask.device)
+                dilated_mask = nn.functional.conv2d(mask.unsqueeze(0).to(torch.float32), dilation_mask, padding=dilation_size)[0].to(torch.bool)
+                valid_depths = torch.logical_and(~dilated_mask, valid_depths)
             if torch.sum(valid_depths) == 0:
                 continue
             
