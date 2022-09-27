@@ -72,6 +72,7 @@ class StretchObjectDisplacementMapModel(ActorCriticModel[CategoricalDistr]):
             accumulate_maps_across_visits=False,
             map_observation_not_occupancy=False,
             convert_occupancy_to_sdf=False,
+            only_encode_current_object_map=False,
             ):
         super().__init__(action_space=action_space, observation_space=observation_space)
 
@@ -82,6 +83,7 @@ class StretchObjectDisplacementMapModel(ActorCriticModel[CategoricalDistr]):
 
         self.map_observation_not_occupancy = map_observation_not_occupancy
         self.convert_occupancy_to_sdf = convert_occupancy_to_sdf
+        self.only_encode_current_object_map = only_encode_current_object_map
 
         self.map_channels = 4
         self.map_size = map_size
@@ -111,7 +113,8 @@ class StretchObjectDisplacementMapModel(ActorCriticModel[CategoricalDistr]):
             # out = self.pose_estimation(batch, 0, batch['odom'])
             # from manipulathor_utils.debugger_util import ForkedPdb; ForkedPdb().set_trace()
 
-        network_args = {'input_channels': self.map_channels, 'layer_channels': [32, 64, 32], 'kernel_sizes': [(8, 8), (4, 4), (3, 3)], 'strides': [(4, 4), (2, 2), (1, 1)], 'paddings': [(0, 0), (0, 0), (0, 0)], 'dilations': [(1, 1), (1, 1), (1, 1)], 'output_height': 24, 'output_width': 24, 'output_channels': 512, 'flatten': True, 'output_relu': True}
+        encoder_map_channels = self.map_channels if not self.only_encode_current_object_map else self.map_channels - 1
+        network_args = {'input_channels': encoder_map_channels, 'layer_channels': [32, 64, 32], 'kernel_sizes': [(8, 8), (4, 4), (3, 3)], 'strides': [(4, 4), (2, 2), (1, 1)], 'paddings': [(0, 0), (0, 0), (0, 0)], 'dilations': [(1, 1), (1, 1), (1, 1)], 'output_height': 24, 'output_width': 24, 'output_channels': 512, 'flatten': True, 'output_relu': True}
         self.full_visual_encoder_map = make_cnn(**network_args)
 
         self.body_pointnav_embedding = nn.Sequential(
@@ -710,6 +713,11 @@ class StretchObjectDisplacementMapModel(ActorCriticModel[CategoricalDistr]):
 
         visual_observation_arm = torch.cat([observations['depth_lowres_arm'], observations['rgb_lowres_arm'], arm_mask], dim=-1).float()
         visual_observation_encoding_arm = compute_cnn_output(self.full_visual_encoder_arm, visual_observation_arm)
+
+        if self.only_encode_current_object_map:
+            tmp_ego_maps = ego_maps[:, :, :, :, :3]
+            tmp_ego_maps[after_pickup][:, :, :, 2] = ego_maps[after_pickup][ :, :, :, 3]
+            ego_maps = tmp_ego_maps
 
         encoding_map = compute_cnn_output(self.full_visual_encoder_map, ego_maps)
 
