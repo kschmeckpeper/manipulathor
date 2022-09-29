@@ -82,7 +82,8 @@ class PointNavEmulStretchRobothorNoisyMotion(
 
     ]
 
-    MAX_STEPS = 200
+    # MAX_STEPS = 200
+    MAX_STEPS = 400
 
     TASK_SAMPLER = StretchDiverseBringObjectTaskSampler
     TASK_TYPE = StretchExploreWiseRewardTask
