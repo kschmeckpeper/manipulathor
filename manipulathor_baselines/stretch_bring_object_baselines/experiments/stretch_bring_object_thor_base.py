@@ -133,6 +133,7 @@ class StretchBringObjectThorBaseConfig(StretchBringObjectBaseConfig, ABC):
         kwargs["objects"] = cls.OBJECT_TYPES
         kwargs["task_type"] = cls.TASK_TYPE
         kwargs["exp_name"] = exp_name_w_time
+        kwargs["num_test_processes"] = cls.NUMBER_OF_TEST_PROCESS
         return cls.TASK_SAMPLER(**kwargs)
 
     @staticmethod

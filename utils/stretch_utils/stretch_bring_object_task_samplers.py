@@ -95,6 +95,7 @@ class StretchDiverseBringObjectTaskSampler(TaskSampler):
         deterministic_cudnn: bool = False,
         fixed_tasks: Optional[List[Dict[str, Any]]] = None,
         visualizers: List[LoggerVisualizer] = [],
+        num_test_processes: int = 1,
         *args,
         **kwargs
     ) -> None:
@@ -203,7 +204,7 @@ class StretchDiverseBringObjectTaskSampler(TaskSampler):
 
             #TODO implement this
             if True:
-                self.all_test_tasks = [i for i in range(1000)]
+                self.all_test_tasks = [i for i in range(10000 // num_test_processes)]
             else:
                 ForkedPdb().set_trace()
 
