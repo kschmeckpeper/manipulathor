@@ -54,7 +54,7 @@ class StretchBringObjectThorBaseConfig(StretchBringObjectBaseConfig, ABC):
     VALID_SAMPLES_IN_SCENE = 1
     TEST_SAMPLES_IN_SCENE = 1
 
-    NUMBER_OF_TEST_PROCESS = 10
+    NUMBER_OF_TEST_PROCESS = 25
 
     def __init__(self):
         super().__init__()
