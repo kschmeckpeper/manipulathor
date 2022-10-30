@@ -406,12 +406,12 @@ class StretchDiverseBringObjectTaskSampler(TaskSampler):
             #calulcate distance of initial object location to all the possible target location
             all_goal_object_locations = self.all_possible_points[(chosen_scene, goal_obj)]['data_point_matrix']
             all_distances = (all_goal_object_locations - initial_location).norm(2, dim=-1)
-
+            print("all_goal_object_locations", all_goal_object_locations.shape)
             #randomly choosing a target location which is far enough from the initial location therefore chances of collisions and failures are low
             valid_goal_indices = torch.nonzero(all_distances > 1.0)
             if len(valid_goal_indices) == 0:
                 print('No far goal was found', chosen_scene, init_obj, goal_obj, 'max distance', all_distances.max())
-                valid_goal_indices = torch.nonzero(all_distances > 0)
+                valid_goal_indices = torch.nonzero(all_distances >= 0)
             chosen_goal_instance = random.choice(valid_goal_indices)
             goal_object_location = self.all_possible_points[(chosen_scene, goal_obj)]['data_point_dict'][chosen_goal_instance]
 
