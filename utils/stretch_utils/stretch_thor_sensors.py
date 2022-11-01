@@ -217,12 +217,13 @@ class RGBSensorStretchIntel(
 
 
 class AgentOdometryEmulSensor(Sensor):
-    def __init__(self, noise=0, uuid: str = "odometry_emul", fixed_frame=False, **kwargs: Any):
+    def __init__(self, noise=0, uuid: str = "odometry_emul", fixed_frame=False, pos_noise=0.0 **kwargs: Any):
         observation_space = gym.spaces.Box(
             low=0, high=1, shape=(1,), dtype=np.float32
         )
         self.scene_names = {}
 
+        self.pos_noise = pos_noise
         self.noise = noise
         assert self.noise == 0
         self.fixed_frame = fixed_frame
@@ -247,7 +248,11 @@ class AgentOdometryEmulSensor(Sensor):
         agent_xyz_rot = np.array([cos_of_rot * agent_xyz[0] - sin_of_rot * agent_xyz[2],
                                    agent_xyz[1],
                                    sin_of_rot * agent_xyz[0] + cos_of_rot * agent_xyz[2]], dtype=np.float32)
-
+        if self.pos_noise > 0:
+            noisex = np.random.normal(0, self.pos_noise)
+            noisez = np.random.normal(0, self.pos_noise)
+            agent_xyz_rot[0] += noisex
+            agent_xyz_rot[2] += noisez
 
         relative_rot = (agent_rot - prev_rot) % 360
         if relative_rot > 180:
@@ -456,7 +461,7 @@ class AgentBodyPointNavSensor(Sensor):
 
 class AgentBodyPointNavEmulSensor(Sensor):
 
-    def __init__(self, type: str, mask_sensor:Sensor, depth_sensor:Sensor, uuid: str = "point_nav_emul", **kwargs: Any):
+    def __init__(self, type: str, mask_sensor:Sensor, depth_sensor:Sensor, use_gt: bool = False, uuid: str = "point_nav_emul", **kwargs: Any):
         observation_space = gym.spaces.Box(
             low=0, high=1, shape=(1,), dtype=np.float32
         )  # (low=-1.0, high=2.0, shape=(3, 4), dtype=np.float32)
@@ -469,6 +474,7 @@ class AgentBodyPointNavEmulSensor(Sensor):
         self.dummy_answer = torch.zeros(3)
         self.dummy_answer[:] = 4 # is this good enough?
         self.device = torch.device("cpu")
+        self.use_gt = use_gt
 
 
         super().__init__(**prepare_locals_for_super(locals()))
@@ -502,14 +508,25 @@ class AgentBodyPointNavEmulSensor(Sensor):
         fov = agent_locations['fov']
 
         #TODO we have to rewrite this such that it rotates the object not the agent
-        if mask.sum() != 0:
-            world_space_point_cloud = calc_world_coordinates(self.min_xyz, camera_xyz, camera_rotation, camera_horizon, fov, self.device, depth_frame)
-            valid_points = (world_space_point_cloud == world_space_point_cloud).sum(dim=-1) == 3
-            point_in_world = world_space_point_cloud[valid_points]
-            middle_of_object = point_in_world.mean(dim=0)
-            middle_of_object = check_for_nan_obj_location(middle_of_object, 'calc agent body')
-
-            self.pointnav_history_aggr.append((middle_of_object.cpu(), len(point_in_world), task.num_steps_taken()))
+        if mask.sum() != 0 or self.use_gt:
+            if not self.use_gt:
+                world_space_point_cloud = calc_world_coordinates(self.min_xyz, camera_xyz, camera_rotation, camera_horizon, fov, self.device, depth_frame)
+                valid_points = (world_space_point_cloud == world_space_point_cloud).sum(dim=-1) == 3
+                point_in_world = world_space_point_cloud[valid_points]
+                middle_of_object = point_in_world.mean(dim=0)
+                middle_of_object = check_for_nan_obj_location(middle_of_object, 'calc agent body')
+                num_points = len(point_in_world)
+            else:
+                if self.type == 'source':
+                    info_to_search = 'source_object_id'
+                elif self.type == 'destination':
+                    info_to_search = 'goal_object_id'
+                else:
+                    raise Exception('Not implemented', self.type)
+                position = env.get_object_by_id(task.task_info[info_to_search])['position']
+                middle_of_object = torch.tensor(np.array([position[k] for k in ["x", "y", "z"]], dtype=np.float32))
+                num_points = 1
+            self.pointnav_history_aggr.append((middle_of_object.cpu(), num_points, task.num_steps_taken()))
 
         return check_for_nan_obj_location(self.average_so_far(camera_xyz, camera_rotation, arm_state, task.num_steps_taken()), 'average agent body')
 
@@ -549,7 +566,7 @@ def check_for_nan_visual_observations(tensor, where_it_occured=''): #TODO remove
     return tensor
 class ArmPointNavEmulSensor(Sensor):
 
-    def __init__(self, type: str, mask_sensor:Sensor, depth_sensor:Sensor, uuid: str = "arm_point_nav_emul", **kwargs: Any):
+    def __init__(self, type: str, mask_sensor:Sensor, depth_sensor:Sensor, use_gt: bool = False, uuid: str = "arm_point_nav_emul", **kwargs: Any):
         observation_space = gym.spaces.Box(
             low=0, high=1, shape=(1,), dtype=np.float32
         )  # (low=-1.0, high=2.0, shape=(3, 4), dtype=np.float32)
@@ -563,6 +580,7 @@ class ArmPointNavEmulSensor(Sensor):
         self.dummy_answer = torch.zeros(3)
         self.dummy_answer[:] = 4 # is this good enough?
         self.device = torch.device("cpu")
+        self.use_gt = use_gt
         super().__init__(**prepare_locals_for_super(locals()))
 
     def get_accurate_locations(self, env):
@@ -599,13 +617,25 @@ class ArmPointNavEmulSensor(Sensor):
         fov = agent_locations['fov']
 
         #TODO we have to rewrite this such that it rotates the object not the agent
-        if mask.sum() != 0:
-            world_space_point_cloud = calc_world_coordinates(self.min_xyz, camera_xyz, camera_rotation, camera_horizon, fov, self.device, depth_frame)
-            valid_points = (world_space_point_cloud == world_space_point_cloud).sum(dim=-1) == 3
-            point_in_world = world_space_point_cloud[valid_points]
-            middle_of_object = point_in_world.mean(dim=0)
-            middle_of_object = check_for_nan_obj_location(middle_of_object, 'calc arm sensor')
-            self.pointnav_history_aggr.append((middle_of_object.cpu(), len(point_in_world), task.num_steps_taken()))
+        if mask.sum() != 0 or self.use_gt:
+            if not self.use_gt:
+                world_space_point_cloud = calc_world_coordinates(self.min_xyz, camera_xyz, camera_rotation, camera_horizon, fov, self.device, depth_frame)
+                valid_points = (world_space_point_cloud == world_space_point_cloud).sum(dim=-1) == 3
+                point_in_world = world_space_point_cloud[valid_points]
+                middle_of_object = point_in_world.mean(dim=0)
+                middle_of_object = check_for_nan_obj_location(middle_of_object, 'calc arm sensor')
+                num_points = len(point_in_world)
+            else:
+                if self.type == 'source':
+                    info_to_search = 'source_object_id'
+                elif self.type == 'destination':
+                    info_to_search = 'goal_object_id'
+                else:
+                    raise Exception('Not implemented', self.type)
+                position = env.get_object_by_id(task.task_info[info_to_search])['position']
+                middle_of_object = torch.tensor(np.array([position[k] for k in ["x", "y", "z"]], dtype=np.float32))
+                num_points = 1
+            self.pointnav_history_aggr.append((middle_of_object.cpu(), num_points, task.num_steps_taken()))
 
         return check_for_nan_obj_location(self.average_so_far(camera_xyz, camera_rotation, arm_state, task.num_steps_taken()), 'average arm sensor')
 
