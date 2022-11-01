@@ -217,7 +217,7 @@ class RGBSensorStretchIntel(
 
 
 class AgentOdometryEmulSensor(Sensor):
-    def __init__(self, noise=0, uuid: str = "odometry_emul", fixed_frame=False, pos_noise=0.0 **kwargs: Any):
+    def __init__(self, noise=0, uuid: str = "odometry_emul", fixed_frame=False, pos_noise=0.0, **kwargs: Any):
         observation_space = gym.spaces.Box(
             low=0, high=1, shape=(1,), dtype=np.float32
         )
