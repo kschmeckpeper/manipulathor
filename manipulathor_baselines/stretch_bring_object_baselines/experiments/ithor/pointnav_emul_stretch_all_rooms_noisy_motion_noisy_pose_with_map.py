@@ -50,7 +50,7 @@ class PointNavEmulStretchAllRoomsNoisyMotionNoisyPoseWithMap(
     destination_mask_sensor_kinect = KinectNoisyObjectMask(height=desired_screen_size, width=desired_screen_size,noise=0, type='destination', distance_thr=distance_thr, only_close_big_masks=True)
     depth_sensor_kinect = KinectRawDepthSensor()
 
-    odometry_sensor = AgentOdometryEmulSensor(noise=0.05)
+    odometry_sensor = AgentOdometryEmulSensor(pos_noise=0.05)
 
     SENSORS = [
         KinectAgentMask(height=desired_screen_size,
