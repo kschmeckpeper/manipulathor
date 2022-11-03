@@ -204,7 +204,7 @@ class StretchDiverseBringObjectTaskSampler(TaskSampler):
 
             #TODO implement this
             if True:
-                self.all_test_tasks = [i for i in range(1000 // num_test_processes)]
+                self.all_test_tasks = [i for i in range(500 // num_test_processes)]
             else:
                 ForkedPdb().set_trace()
 
